@@ -1,15 +1,16 @@
+import datetime
+import asyncio
+
 import discord
 from discord.ext import commands
+from discord.ext import tasks
 import tokens
 import logging
-
-class ScheduleBot(commands.Bot):
-    pass
 
 intents = discord.Intents.default()
 intents.message_content = True
 
-bot = ScheduleBot(command_prefix="!", intents=intents)
+bot = commands.Bot(command_prefix="!", intents=intents)
 
 @bot.event
 async def on_ready():
@@ -34,13 +35,32 @@ async def on_scheduled_event_delete(event):
         await event.guild.system_channel.send('Event deleted!')
 
 @bot.event
-async def on_scheduled_event_update(event):
+async def on_scheduled_event_update(before, after):
     pass
 
 @bot.command()
 async def remind(ctx):
     await ctx.send("nah")
 
+@tasks.loop(minutes=15)
+async def check_reminder():
+    now = datetime.datetime.now(datetime.timezone.utc)
+    # get our reminders
+    # iterate through the reminders
+    # if the reminder is up, post
+
+@check_reminder.before_loop
+async def before_check():
+    await bot.wait_until_ready()
+
+    now = datetime.datetime.now(datetime.timezone.utc)
+    min_to_next = 15 - (now.minute % 15)
+    next_time = now.replace(second=0, microsecond=0) + datetime.timedelta(minutes=min_to_next)
+
+    await asyncio.sleep((next_time - now).total_seconds())
+
 handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w')
 
 bot.run(tokens.bot_token, log_handler=handler)
+
+check_reminder.start()
