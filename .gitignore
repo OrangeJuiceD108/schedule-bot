@@ -217,4 +217,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
 tokens.py
+discord.log
