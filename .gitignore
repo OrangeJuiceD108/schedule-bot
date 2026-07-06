@@ -220,3 +220,9 @@ __marimo__/
 
 tokens.py
 discord.log
+.idea/inspectionProfiles/profiles_settings.xml
+.idea/misc.xml
+.idea/modules.xml
+.idea/schedule-bot.iml
+.idea/vcs.xml
+.idea/workspace.xml
