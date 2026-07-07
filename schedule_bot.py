@@ -5,7 +5,7 @@ import discord
 from discord.ext import commands
 from discord.ext import tasks
 import tokens
-import reminder
+import database
 import logging
 
 intents = discord.Intents.default()
@@ -46,12 +46,12 @@ async def remind(ctx):
 @tasks.loop(minutes=15)
 async def check_reminder():
     now = datetime.datetime.now(datetime.timezone.utc)
-    due = reminder.get(now)
+    due = database.get(now)
     for r in due:
         channel = bot.get_channel(r.channel_id)
         # replace test with message
         await channel.send('test')
-        reminder.remove(reminder.id)
+        database.remove(reminder.id)
 
     # get our reminders
     # iterate through the reminders
