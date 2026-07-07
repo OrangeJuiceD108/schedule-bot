@@ -7,9 +7,10 @@ import os
 # ++++++++++++++++++
 
 class Individual:
-    def __init__(self, reminder_id, r_time, role, guild_id, event_title):
+    def __init__(self, reminder_id, r_time, event_id, role, guild_id, event_title):
         self.id = reminder_id
         self.time = r_time
+        self.event_id = event_id
         self.role = role
         self.guild_id = guild_id
         self.event_title = event_title
@@ -23,7 +24,7 @@ def get_due_individuals(r_time):
 
     rows = cursor.fetchall()
 
-    return [Individual(row[0], row[1], row[2], row[3], row[4]) for row in rows]
+    return [Individual(row[0], row[1], row[2], row[3], row[4], row[5]) for row in rows]
 
 def get_individuals_by_id(reminder_id):
     cursor.execute("""
@@ -34,7 +35,7 @@ def get_individuals_by_id(reminder_id):
 
     rows = cursor.fetchall()
 
-    return [Individual(row[0], row[1], row[2], row[3], row[4]) for row in rows]
+    return [Individual(row[0], row[1], row[2], row[3], row[4], row[5]) for row in rows]
 
 def remove_due_individuals(r_time):
     cursor.execute("""
@@ -63,8 +64,8 @@ class Recurrent:
 # offset is a datetime.timedelta
 def add_recurrent(offset, guild_id):
     cursor.execute("""
-        INSERT INTO recurrents 
-        VALUES (?, ?, ?)
+        INSERT INTO recurrents (offset, guild_id)
+        VALUES (?, ?)
     """, (offset.total_seconds(), guild_id))
 
     r_id = cursor.lastrowid
@@ -72,20 +73,20 @@ def add_recurrent(offset, guild_id):
 
     new_individuals = []
     for event in events:
-        new_individuals.append((r_id, event.time + offset, event.role, guild_id, event.title))
+        new_individuals.append((r_id, event.time + offset, event.id, event.role, guild_id, event.title))
 
     cursor.executemany("""
         INSERT INTO individuals 
-        VALUES (?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?)
     """, new_individuals)
     conn.commit()
 
-def get_recurrent_by_time(offset):
+def get_recurrent_by_offset(offset):
     # offset is assumed to be a datetime.timedelta
     cursor.execute("""
         SELECT * 
         FROM recurrents
-        WHERE time = ?
+        WHERE offset = ?
     """, (offset.total_seconds(),))
 
     row = cursor.fetchone()
@@ -131,6 +132,10 @@ def remove_recurrent_by_id(reminder_id):
 
     conn.commit()
 
+def remove_recurrent_by_offset(offset):
+    recurrent = get_recurrent_by_offset(offset)
+    remove_recurrent_by_id(recurrent.id)
+
 # +++++++++++++++++++++
 # EVENTS
 # +++++++++++++++++++++
@@ -147,18 +152,18 @@ def add_event(e_id, e_time, role, guild_id, title):
     cursor.execute("""
         INSERT INTO events
         VALUES (?, ?, ?, ?, ?)
-    """, (e_id, e_time.total_seconds(), role, guild_id, title))
+    """, (e_id, e_time, role, guild_id, title))
 
     r_id = cursor.lastrowid
     recurrents = get_recurrents()
 
     new_individuals = []
     for recurrent in recurrents:
-        new_individuals.append((r_id, e_time + recurrent.offset, role, guild_id, title))
+        new_individuals.append((r_id, e_time + recurrent.offset, e_id, role, guild_id, title))
 
     cursor.executemany("""
             INSERT INTO individuals 
-            VALUES (?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?)
         """, new_individuals)
     conn.commit()
 
@@ -172,7 +177,7 @@ def get_event_by_id(event_id):
     row = cursor.fetchone()
     if not row:
         return None
-    return Event(row[0], row[2], row[2], row[3], row[4])
+    return Event(row[0], row[1], row[2], row[3], row[4])
 
 def get_events_by_time(event_time):
     cursor.execute("""
@@ -235,6 +240,7 @@ cursor.execute("""
     schedule_id INTEGER NOT NULL,
     time TIMESTAMP NOT NULL,
     event_id INTEGER NOT NULL,
+    event_role TEXT DEFAULT 'everyone',
     guild_id INTEGER NOT NULL,
     event_title TEXT NOT NULL
     )
@@ -250,7 +256,7 @@ cursor.execute("""
 
 cursor.execute("""
     CREATE TABLE IF NOT EXISTS events (
-    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    id INTEGER NOT NULL PRIMARY KEY,
     time TIMESTAMP NOT NULL,
     role TEXT DEFAULT 'everyone',
     guild_id INTEGER NOT NULL,
