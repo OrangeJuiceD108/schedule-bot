@@ -46,16 +46,17 @@ async def remind(ctx):
 @tasks.loop(minutes=15)
 async def check_reminder():
     now = datetime.datetime.now(datetime.timezone.utc)
-    due = database.get(now)
+    due = database.get_due_individuals(now)
     for r in due:
+        # TODO: replace r.channel_id
+        # Gonna have to store the guild id
+        # Then we can get the guild channel with
+        # bot.fetch_guild(r.guild_id).system_channel
         channel = bot.get_channel(r.channel_id)
-        # replace test with message
+        # TODO: replace test with message
         await channel.send('test')
-        database.remove(reminder.id)
-
-    # get our reminders
-    # iterate through the reminders
-    # if the reminder is up, post
+    database.remove_due_individuals(now)
+    database.remove_due_events(now)
 
 @check_reminder.before_loop
 async def before_check():
