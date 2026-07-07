@@ -11,50 +11,64 @@ import logging
 intents = discord.Intents.default()
 intents.message_content = True
 
-bot = commands.Bot(command_prefix="!", intents=intents)
+bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
 
 @bot.event
-async def on_ready():
+async def on_guild_join(guild):
     print(f'Logged in as {bot.user}')
 
     for guild in bot.guilds:
         if guild.system_channel:
-            await guild.system_channel.send('Hello!')
+            await guild.system_channel.send('Hi! Welcome to Heroin! Type \'!help\' to get started :)')
 
-@bot.listen()
-async def on_message(message):
-    print(f'Message from {message.author}: {message.content}')
+# @bot.listen()
+# async def on_message(message):
+#     print(f'Message from {message.author}: {message.content}')
 
 @bot.event
 async def on_scheduled_event_create(event):
-    if event.guild.system_channel:
-        await event.guild.system_channel.send('Event created!')
+    role = 'everyone'
+    if event.description and event.description.split(" ").startswith('@'):
+        role = event.description.split(" ")[1]
+    database.add_event(event.id, event.start_time, role, event.guild.id, event.name)
 
 @bot.event
 async def on_scheduled_event_delete(event):
-    if event.guild.system_channel:
-        await event.guild.system_channel.send('Event deleted!')
+    database.remove_event(event.id)
 
 @bot.event
 async def on_scheduled_event_update(before, after):
-    pass
+    database.remove_event(before.id)
+
+    role = 'everyone'
+    if after.description and after.description.split(" ").startswith('@'):
+        role = after.description.split(" ")[1]
+    database.add_event(after.id, after.start_time, role, after.guild.id, after.name)
 
 @bot.command()
-async def remind(ctx):
+async def remind(ctx, args):
     await ctx.send("nah")
+
+@bot.command(name='help')
+async def custom_help(ctx, args=None):
+    await ctx.send('nah')
 
 @tasks.loop(minutes=15)
 async def check_reminder():
     now = datetime.datetime.now(datetime.timezone.utc)
     due = database.get_due_individuals(now)
+    guilds = {}
     for r in due:
-        # TODO: replace r.channel_id
-        # Gonna have to store the guild id
-        # Then we can get the guild channel with
-        # bot.fetch_guild(r.guild_id).system_channel
-        channel = bot.get_channel(r.channel_id)
-        # TODO: replace test with message
-        await channel.send('test')
+        if not guilds.get(r.guild_id):
+            guilds[r.guild_id] = await bot.fetch_guild(r.guild_id)
+
+        guild = guilds[r.guild_id]
+        channel = guild.system_channel
+
+        await channel.send(f"@{r.role}"
+                           f"{r.title}"
+                           f"On {r.time.strftime('%I:%M %p')}"
+                           f"In {r.time - now.time()}")
     database.remove_due_individuals(now)
     database.remove_due_events(now)
 

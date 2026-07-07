@@ -1,16 +1,18 @@
 import sqlite3
 import datetime
+import os
 
 # ++++++++++++++++++
 # INDIVIDUAL
 # ++++++++++++++++++
 
 class Individual:
-    def __init__(self, reminder_id, r_time, role, guild_id):
+    def __init__(self, reminder_id, r_time, role, guild_id, event_title):
         self.id = reminder_id
         self.time = r_time
         self.role = role
         self.guild_id = guild_id
+        self.event_title = event_title
 
 def get_due_individuals(r_time):
     cursor.execute("""
@@ -21,7 +23,7 @@ def get_due_individuals(r_time):
 
     rows = cursor.fetchall()
 
-    return [Individual(row[0], row[1], row[2], row[3]) for row in rows]
+    return [Individual(row[0], row[1], row[2], row[3], row[4]) for row in rows]
 
 def get_individuals_by_id(reminder_id):
     cursor.execute("""
@@ -32,7 +34,7 @@ def get_individuals_by_id(reminder_id):
 
     rows = cursor.fetchall()
 
-    return [Individual(row[0], row[1], row[2], row[3]) for row in rows]
+    return [Individual(row[0], row[1], row[2], row[3], row[4]) for row in rows]
 
 def remove_due_individuals(r_time):
     cursor.execute("""
@@ -70,11 +72,11 @@ def add_recurrent(offset, guild_id):
 
     new_individuals = []
     for event in events:
-        new_individuals.append((r_id, event[1] + offset, event[2], guild_id))
+        new_individuals.append((r_id, event.time + offset, event.role, guild_id, event.title))
 
     cursor.executemany("""
         INSERT INTO individuals 
-        VALUES (?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?)
     """, new_individuals)
     conn.commit()
 
@@ -134,28 +136,29 @@ def remove_recurrent_by_id(reminder_id):
 # +++++++++++++++++++++
 
 class Event:
-    def __init__(self, event_id, e_time, role, guild_id):
+    def __init__(self, event_id, e_time, role, guild_id, title):
         self.id = event_id
         self.time = e_time
         self.role = role
         self.guild_id = guild_id
+        self.title = title
 
-def add_event(e_time, role, guild_id):
+def add_event(e_id, e_time, role, guild_id, title):
     cursor.execute("""
         INSERT INTO events
-        VALUES (?, ?, ?, ?)
-    """, (e_time.total_seconds(), role, guild_id))
+        VALUES (?, ?, ?, ?, ?)
+    """, (e_id, e_time.total_seconds(), role, guild_id, title))
 
     r_id = cursor.lastrowid
     recurrents = get_recurrents()
 
     new_individuals = []
     for recurrent in recurrents:
-        new_individuals.append((r_id, e_time + recurrent.offset, role, guild_id))
+        new_individuals.append((r_id, e_time + recurrent.offset, role, guild_id, title))
 
     cursor.executemany("""
             INSERT INTO individuals 
-            VALUES (?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?)
         """, new_individuals)
     conn.commit()
 
@@ -169,7 +172,7 @@ def get_event_by_id(event_id):
     row = cursor.fetchone()
     if not row:
         return None
-    return Event(row[0], row[2], row[2], row[3])
+    return Event(row[0], row[2], row[2], row[3], row[4])
 
 def get_events_by_time(event_time):
     cursor.execute("""
@@ -182,7 +185,7 @@ def get_events_by_time(event_time):
 
     ret = []
     for row in rows:
-        ret.append(Event(row[0], row[1], row[2], row[3]))
+        ret.append(Event(row[0], row[1], row[2], row[3], row[4]))
     return ret
 
 def get_events():
@@ -195,7 +198,7 @@ def get_events():
 
     ret = []
     for row in rows:
-        ret.append(Event(row[0], row[1], row[2], row[3]))
+        ret.append(Event(row[0], row[1], row[2], row[3], row[4]))
     return ret
 
 def remove_event(event_id):
@@ -223,7 +226,8 @@ def remove_due_events(e_time):
 # INITIALIZATION
 # +++++++++++++++++++++
 
-conn = sqlite3.connect("database.db", detect_types=sqlite3.PARSE_DECLTYPES)
+db_path = os.path.join('data', 'database.db')
+conn = sqlite3.connect(db_path, detect_types=sqlite3.PARSE_DECLTYPES)
 cursor = conn.cursor()
 
 cursor.execute("""
@@ -231,7 +235,8 @@ cursor.execute("""
     schedule_id INTEGER NOT NULL,
     time TIMESTAMP NOT NULL,
     event_id INTEGER NOT NULL,
-    guild_id INTEGER NOT NULL
+    guild_id INTEGER NOT NULL,
+    event_title TEXT NOT NULL
     )
 """)
 
@@ -248,7 +253,8 @@ cursor.execute("""
     id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     time TIMESTAMP NOT NULL,
     role TEXT DEFAULT 'everyone',
-    guild_id INTEGER NOT NULL
+    guild_id INTEGER NOT NULL,
+    event_title TEXT NOT NULL
 """)
 
 conn.commit()
