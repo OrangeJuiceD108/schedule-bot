@@ -255,6 +255,7 @@ cursor.execute("""
     role TEXT DEFAULT 'everyone',
     guild_id INTEGER NOT NULL,
     event_title TEXT NOT NULL
+    )
 """)
 
 conn.commit()
