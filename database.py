@@ -24,18 +24,18 @@ def get_due_individuals(r_time):
 
     rows = cursor.fetchall()
 
-    return [Individual(row[0], row[1], row[2], row[3], row[4], row[5]) for row in rows]
+    return [Individual(row[0], row[1].replace(tzinfo=datetime.timezone.utc), row[2], row[3], row[4], row[5]) for row in rows]
 
 def get_individuals_by_id(reminder_id):
     cursor.execute("""
         SELECT *
         FROM individuals
-        WHERE id = ?
+        WHERE schedule_id = ?
     """, (reminder_id,))
 
     rows = cursor.fetchall()
 
-    return [Individual(row[0], row[1], row[2], row[3], row[4], row[5]) for row in rows]
+    return [Individual(row[0], row[1].replace(tzinfo=datetime.timezone.utc), row[2], row[3], row[4], row[5]) for row in rows]
 
 def remove_due_individuals(r_time):
     cursor.execute("""
@@ -73,7 +73,8 @@ def add_recurrent(offset, guild_id):
 
     new_individuals = []
     for event in events:
-        new_individuals.append((r_id, event.time + offset, event.id, event.role, guild_id, event.title))
+        individual_time = (event.time - offset).replace(tzinfo=None)
+        new_individuals.append((r_id, individual_time, event.id, event.role, guild_id, event.title))
 
     cursor.executemany("""
         INSERT INTO individuals 
@@ -149,17 +150,17 @@ class Event:
         self.title = title
 
 def add_event(e_id, e_time, role, guild_id, title):
+    e_time = e_time.astimezone(datetime.timezone.utc).replace(tzinfo=None)
     cursor.execute("""
         INSERT INTO events
         VALUES (?, ?, ?, ?, ?)
     """, (e_id, e_time, role, guild_id, title))
 
-    r_id = cursor.lastrowid
     recurrents = get_recurrents()
 
     new_individuals = []
     for recurrent in recurrents:
-        new_individuals.append((r_id, e_time + recurrent.offset, e_id, role, guild_id, title))
+        new_individuals.append((recurrent.id, e_time - recurrent.offset, e_id, role, guild_id, title))
 
     cursor.executemany("""
             INSERT INTO individuals 
@@ -177,7 +178,7 @@ def get_event_by_id(event_id):
     row = cursor.fetchone()
     if not row:
         return None
-    return Event(row[0], row[1], row[2], row[3], row[4])
+    return Event(row[0], row[1].replace(tzinfo=datetime.timezone.utc), row[2], row[3], row[4])
 
 def get_events_by_time(event_time):
     cursor.execute("""
@@ -190,7 +191,7 @@ def get_events_by_time(event_time):
 
     ret = []
     for row in rows:
-        ret.append(Event(row[0], row[1], row[2], row[3], row[4]))
+        ret.append(Event(row[0], row[1].replace(tzinfo=datetime.timezone.utc), row[2], row[3], row[4]))
     return ret
 
 def get_events():
@@ -203,7 +204,7 @@ def get_events():
 
     ret = []
     for row in rows:
-        ret.append(Event(row[0], row[1], row[2], row[3], row[4]))
+        ret.append(Event(row[0], row[1].replace(tzinfo=datetime.timezone.utc), row[2], row[3], row[4]))
     return ret
 
 def remove_event(event_id):

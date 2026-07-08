@@ -1,6 +1,5 @@
 import datetime
 import asyncio
-
 import discord
 from discord.ext import commands
 from discord.ext import tasks
@@ -8,6 +7,17 @@ import tokens
 import database
 import logging
 import math
+import os
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    handlers=[
+        logging.FileHandler(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'bot.log'), mode='a'),
+        logging.StreamHandler()
+    ]
+)
+bot_logger = logging.getLogger('heroin')
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -16,13 +26,14 @@ bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
 
 @bot.event
 async def on_guild_join(guild):
-    print(f'Logged in as {bot.user}')
+    bot_logger.info(f'Logged in as {bot.user}')
 
     if guild.system_channel:
         await guild.system_channel.send('Hi! Welcome to Heroin. Type \'!help\' to get started using Heroin :)')
 
 @bot.event
 async def on_ready():
+    bot_logger.info('Bot ready')
     if not check_reminder.is_running():
         check_reminder.start()
 
@@ -52,7 +63,7 @@ async def on_scheduled_event_update(before, after):
 
 @bot.event
 async def on_command_error(ctx, error):
-    print(f"Command Error: {error}")
+    bot_logger.error(f"Command Error: {error}")
     await ctx.send(f"Something went wrong: {error}")
 
 class RemindFlags(commands.FlagConverter, prefix='-', delimiter = ' '):
@@ -85,6 +96,51 @@ async def show_all(ctx):
         output += f'- {offset}\n'
 
     await ctx.send(output)
+
+@bot.command()
+async def debug(ctx):
+    reminders = database.get_recurrents()
+
+    await ctx.send("Getting recurrents")
+
+    output = 'Recurrents:\n'
+    for recurrent in reminders:
+        output += f'- {recurrent.offset}\n'
+
+    await ctx.send('Found recurrents, getting events')
+
+    events = database.get_events()
+
+    output += '\nEvents:\n'
+    for event in events:
+        output += f'- <t:{int(event.time.timestamp())}:t>\n'
+
+    await ctx.send('Found events, getting individuals')
+
+    individuals = []
+    for reminder in reminders:
+        new_ind = database.get_individuals_by_id(reminder.id)
+        individuals += new_ind
+
+    output += '\nIndividuals:\n'
+    for individual in individuals:
+        output += f'- <t:{int(individual.time.timestamp())}:t>\n'
+
+    await ctx.send(output)
+
+@bot.command()
+async def force(ctx):
+    await check_reminder.coro()
+    await ctx.send('Reminders forced.')
+
+@bot.command()
+async def status(ctx):
+    await ctx.send(
+        f"Running: {check_reminder.is_running()}\n"
+        f"Next iteration: {check_reminder.next_iteration}\n"
+        f"Current loop count: {check_reminder.current_loop}\n"
+        f"Failed attempts: {check_reminder.failed()}"
+    )
 
 @bot.command()
 async def remove(ctx, *, flags: RemindFlags):
@@ -150,22 +206,37 @@ async def help_help(ctx):
 
 @tasks.loop(minutes=15)
 async def check_reminder():
+    bot_logger.info("Checking reminders")
     now = datetime.datetime.now(datetime.timezone.utc)
-    due = database.get_due_individuals(now)
+    # now_stored = now.replace(tzinfo=None)
+    now_stored = (now + datetime.timedelta(minutes=1)).replace(tzinfo=None)
+
+    due = database.get_due_individuals(now_stored)
     guilds = {}
     for r in due:
         if not guilds.get(r.guild_id):
-            guilds[r.guild_id] = await bot.fetch_guild(r.guild_id)
+            guilds[r.guild_id] = bot.get_guild(r.guild_id)
 
         guild = guilds[r.guild_id]
+
+        if guild is None:
+            bot_logger.warning(f"Guild {r.guild_id} not in cache. Skipping reminder for `{r.event_title}`")
+            continue
+
         channel = guild.system_channel
 
-        await channel.send(f"@{r.role}"
-                           f"{r.event_title}"
-                           f"On {r.time.strftime('%I:%M %p')}"
-                           f"In {r.time - now}")
-    database.remove_due_individuals(now)
-    database.remove_due_events(now)
+        if channel is None:
+            bot_logger.warning(f"Guild {r.guild_id} has no system channel. Skipping reminder for `{r.event_title}`")
+            continue
+
+        event = database.get_event_by_id(r.event_id)
+
+        await channel.send(f"@{r.role}\n"
+                           f"{r.event_title}\n"
+                           f"At <t:{int(event.time.timestamp())}:t>\n"
+                           f"In <t:{int(event.time.timestamp())}:R>\n")
+    database.remove_due_individuals(now_stored)
+    database.remove_due_events(now_stored)
 
 @check_reminder.before_loop
 async def before_check():
@@ -179,7 +250,9 @@ async def before_check():
 
 @check_reminder.error
 async def check_reminder_error(error):
-    print(error)
+    bot_logger.error(f"Check reminder error: {error}")
+    if not check_reminder.is_running():
+        check_reminder.restart()
 
 handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w')
 
