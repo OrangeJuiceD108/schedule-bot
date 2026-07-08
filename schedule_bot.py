@@ -97,41 +97,41 @@ async def show_all(ctx):
 
     await ctx.send(output)
 
-@bot.command()
-async def debug(ctx):
-    reminders = database.get_recurrents()
+# @bot.command()
+# async def debug(ctx):
+#     reminders = database.get_recurrents()
+#
+#     await ctx.send("Getting recurrents")
+#
+#     output = 'Recurrents:\n'
+#     for recurrent in reminders:
+#         output += f'- {recurrent.offset}\n'
+#
+#     await ctx.send('Found recurrents, getting events')
+#
+#     events = database.get_events()
+#
+#     output += '\nEvents:\n'
+#     for event in events:
+#         output += f'- <t:{int(event.time.timestamp())}:t>\n'
+#
+#     await ctx.send('Found events, getting individuals')
+#
+#     individuals = []
+#     for reminder in reminders:
+#         new_ind = database.get_individuals_by_id(reminder.id)
+#         individuals += new_ind
+#
+#     output += '\nIndividuals:\n'
+#     for individual in individuals:
+#         output += f'- <t:{int(individual.time.timestamp())}:t>\n'
+#
+#     await ctx.send(output)
 
-    await ctx.send("Getting recurrents")
-
-    output = 'Recurrents:\n'
-    for recurrent in reminders:
-        output += f'- {recurrent.offset}\n'
-
-    await ctx.send('Found recurrents, getting events')
-
-    events = database.get_events()
-
-    output += '\nEvents:\n'
-    for event in events:
-        output += f'- <t:{int(event.time.timestamp())}:t>\n'
-
-    await ctx.send('Found events, getting individuals')
-
-    individuals = []
-    for reminder in reminders:
-        new_ind = database.get_individuals_by_id(reminder.id)
-        individuals += new_ind
-
-    output += '\nIndividuals:\n'
-    for individual in individuals:
-        output += f'- <t:{int(individual.time.timestamp())}:t>\n'
-
-    await ctx.send(output)
-
-@bot.command()
-async def force(ctx):
-    await check_reminder.coro()
-    await ctx.send('Reminders forced.')
+# @bot.command()
+# async def force(ctx):
+#     await check_reminder.coro()
+#     await ctx.send('Reminders forced.')
 
 @bot.command()
 async def status(ctx):
